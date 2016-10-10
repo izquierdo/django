@@ -1,8 +1,18 @@
+from django.contrib.contenttypes.fields import (
+    GenericForeignKey, GenericRelation,
+)
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models.signals import pre_delete
+
+
+class P(models.Model):
+    pass
 
 
 class R(models.Model):
     is_default = models.BooleanField(default=False)
+    p = models.ForeignKey(P, models.CASCADE, null=True)
 
     def __str__(self):
         return "%s" % self.pk
@@ -46,10 +56,12 @@ class A(models.Model):
     )
     cascade = models.ForeignKey(R, models.CASCADE, related_name='cascade_set')
     cascade_nullable = models.ForeignKey(R, models.CASCADE, null=True, related_name='cascade_nullable_set')
-    protect = models.ForeignKey(R, models.PROTECT, null=True)
+    protect = models.ForeignKey(R, models.PROTECT, null=True, related_name='protect_set')
+    restrict = models.ForeignKey(R, models.RESTRICT, null=True, related_name='restrict_set')
     donothing = models.ForeignKey(R, models.DO_NOTHING, null=True, related_name='donothing_set')
     child = models.ForeignKey(RChild, models.CASCADE, related_name="child")
     child_setnull = models.ForeignKey(RChild, models.SET_NULL, null=True, related_name="child_setnull")
+    cascade_p = models.ForeignKey(P, models.CASCADE, related_name='cascade_p_set', null=True)
 
     # A OneToOneField is just a ForeignKey unique=True, so we don't duplicate
     # all the tests; just one smoke test to ensure on_delete works for it as
@@ -61,7 +73,7 @@ def create_a(name):
     a = A(name=name)
     for name in ('auto', 'auto_nullable', 'setvalue', 'setnull', 'setdefault',
                  'setdefault_none', 'cascade', 'cascade_nullable', 'protect',
-                 'donothing', 'o2o_setnull'):
+                 'restrict', 'donothing', 'o2o_setnull'):
         r = R.objects.create()
         setattr(a, name, r)
     a.child = RChild.objects.create()
@@ -147,3 +159,49 @@ class SecondReferrer(models.Model):
     other_referrer = models.ForeignKey(
         Referrer, models.CASCADE, to_field='unique_field', related_name='+'
     )
+
+
+class DeleteTop(models.Model):
+    b1s = GenericRelation('GenericB1')
+    b2s = GenericRelation('GenericB2')
+
+
+class B1(models.Model):
+    delete_top = models.ForeignKey(DeleteTop, models.CASCADE)
+
+
+class B2(models.Model):
+    delete_top = models.ForeignKey(DeleteTop, models.CASCADE)
+
+
+class DeleteBottom(models.Model):
+    b1 = models.ForeignKey(B1, models.RESTRICT)
+    b2 = models.ForeignKey(B2, models.CASCADE)
+
+
+class GenericB1(models.Model):
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    generic_delete_top = GenericForeignKey('content_type', 'object_id')
+
+
+class GenericB2(models.Model):
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    generic_delete_top = GenericForeignKey('content_type', 'object_id')
+    generic_delete_bottoms = GenericRelation('GenericDeleteBottom')
+
+
+class GenericDeleteBottom(models.Model):
+    generic_b1 = models.ForeignKey(GenericB1, models.RESTRICT)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    generic_b2 = GenericForeignKey()
+
+
+def callback(sender, **kwargs):
+    pass
+
+
+# Prevent collector fast deletes by attaching a signal.
+pre_delete.connect(callback, sender=GenericDeleteBottom)

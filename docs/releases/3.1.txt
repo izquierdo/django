@@ -169,6 +169,11 @@ Models
   :class:`~django.db.models.DateTimeField`, and the new :lookup:`iso_week_day`
   lookup allows querying by an ISO-8601 day of week.
 
+* The new :class:`~django.db.models.RESTRICT` option for
+  :attr:`~django.db.models.ForeignKey.on_delete` argument of ``ForeignKey`` and
+  ``OneToOneField`` emulates the behavior of the SQL constraint ``ON DELETE
+  RESTRICT``.
+
 Pagination
 ~~~~~~~~~~
 
