@@ -299,7 +299,7 @@ class Collector:
             for batch in batches:
                 sub_objs = self.related_objects(related_model, related_fields, batch)
                 self.fast_deletes.append(sub_objs)
-                self.add_dependency(model, related_model)
+                # self.add_dependency(model, related_model) Do we need this?
         for field in model._meta.private_fields:
             if hasattr(field, 'bulk_related_objects'):
                 # It's something like generic foreign key.
